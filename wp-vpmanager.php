@@ -1,10 +1,10 @@
 <?php
 /*
-    Plugin Name: WP-Volunteer Project Manager
-    Plugin URI: http://EXAMPLE.com/
+    Plugin Name: WordPress Volunteer Project Manager
+    Plugin URI: http://www.volunteerwild.org/
     Description: Create and manage volunteer projects for your organization.
     Author: <a href="http://Cyberbusking.org/">Meitar "maymay" Moscovitz</a> and Lionel Di Giacomo
-    Version: 0.01
+    Version: 0.2
     Text Domain: wp-vpmanager
     Domain Path: /languages
 */
@@ -88,7 +88,7 @@ class WP_VPManager {
     }
 
 	public function registerDateScript () {
-	      wp_register_script('vpm-scripts', plugins_url( '/wp-vpm-scripts.js', __FILE__ ) );
+	      wp_register_script('vpm-scripts', plugins_url( '/js/wp-vpm-scripts.js', __FILE__ ) );
      		wp_enqueue_script('jquery-ui-datepicker'); 
 	      wp_enqueue_script('vpm-scripts');
 		    wp_enqueue_style('jquery-ui-css', 'http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.2/themes/smoothness/jquery-ui.css');
