@@ -87,7 +87,7 @@ class WP_VPManager {
         register_taxonomy('scope', $this->post_type, $args);       
     }
 
-		public function registerDateScript () {
+	public function registerDateScript () {
 	      wp_register_script('vpm-scripts', plugins_url( '/wp-vpm-scripts.js', __FILE__ ) );
      		wp_enqueue_script('jquery-ui-datepicker'); 
 	      wp_enqueue_script('vpm-scripts');
@@ -159,85 +159,156 @@ class WP_VPManager {
       	return $output;
     }
 
-		//Helper for sc_projectStatus
+	//Helper for sc_projectStatus//
     public function displayStartDate () {
     	global $post;
       	$date_str = explode('-', get_post_meta($post->ID, $this->post_type . '_startdate', true));
 			return date('l, F j Y', mktime(0,0,0,$date_str[1],$date_str[2],$date_str[0]));
     }
  
-  public function sc_joinButton () {
-			//HTML for a join button
-			if(!is_user_logged_in()) {
-				return "Login to join this project!";				
-			}
-			
-			if(!isset($_POST['wp-vpm-signup-action']))
-				return "Signup: <form action='' method='post'><input type='submit' name='wp-vpm-signup-action' value='true' /></form>";
-			
-			return $this->signupUser(); 
-    }
+    public function sc_joinButton () {
+        global $post;		
+        $debug = "";
+        $message = "";
+        $opentags = "<form action='' method='get'><input type='hidden' name='wp-vpm-postref' value='".$post->ID ."'/><table><tr>";
+        $cancel = "<td><button type='submit' name='wp-vpm-action' value='cancel'>Leave Project</button></td>";				        
+        $waitlist = "<td><button type='submit' name='wp-vpm-action' value='waitlist'>Join the Waitlist</button></td>";       
+        $signup = "<td><button type='submit' name='wp-vpm-action' value='signup'>Register for this Project</button></td>";
+        $closetags = "</table></form></tr>";
+        
+        $debug .= "\$waitlist after initialization: " . htmlspecialchars($waitlist) . "<br>";
+//->Is user logged in?		
+//	->NO: Login to sign up for this project! BREAK
+//  ->
 
-  public function signupUser () {
+		if(!is_user_logged_in()) {
+			$message = "Login or register to signup for this project!";
+			//Return immediately if not logged in.
+			return $message;
+		}		
+        else $user = get_current_user_id();
+        
 
-		//Was the button pushed?
-		if(!isset($_POST['wp-vpm-signup-action'])){
-			return 0;
-			}
-		
-		//Check if the user is actually logged in	
-		global $post;
-		if (!is_user_logged_in()) {
-			return "No user logged in to sign up! How did you do that?";
-			}
-	
-		//Get the list of current volunteers for the project and max volunteer spaces.
+//Action logic.
+//->Did the user submit a form for THIS post?
+        if($_GET['wp-vpm-postref'] == $post->ID) {
+            
+//  ->Did the user hit the signup button?
+//      ->YES: Add the user to the project.
+            if($_GET['wp-vpm-action'] == 'signup') {
+                $debug = "Signup action detected. <br/>";
+                add_post_meta($post->ID, $this->post_type . '_signedup', $user);
+            }
+        
+//  ->Did the user click the waitlist button?
+//      ->YES: Add the user to the waitlist.
+            if($_GET['wp-vpm-action'] == 'waitlist') {
+                $debug = "Waitlist action detected. <br/>";
+                add_post_meta($post->ID, $this->post_type . '_waitlist', $user);
+            }
+//  ->Did the user click the cancel button?
+//      ->YES: Remove the user from the roster and waitlist.
+            if($_GET['wp-vpm-action'] == 'cancel') {
+                $debug = "Cancel action detected. <br/>";
+                $message .= "<strong>You've unregistered for this project.</strong><br />";
+                delete_post_meta($post->ID, $this->post_type . '_waitlist', $user);
+                delete_post_meta($post->ID, $this->post_type . '_signedup', $user);
+            }
+        } else $debug .= "No action detected.<br/>";        
+        
+        $debug .= "\$waitlist after action logic: " . htmlspecialchars($waitlist) . "<br>";
+//Preprocessing for form logic.        
+		//Get the signup list. Is the user signed up?
 		$roster = get_post_meta($post->ID, $this->post_type . '_signedup', false);
-
-		//Is the current user already on the list?
-		$user = get_current_user_id();  	
+    $admin = "<table><tr><td colspan='2'>Registered Volunteers</td></tr>";
 		foreach ($roster as $volunteer_on_list) {
-			if($volunteer_on_list == $user) {
-				return "You are already signed up for this project!";				
-				}
+      $registeredUser = get_userdata($volunteer_on_list);
+		 	$admin .= "<tr><td>" . $registeredUser->display_name . "</td><td>" . $registeredUser->user_email . "</td></tr>";
+			if($volunteer_on_list == $user) {			    
+				$user_signedup = true;	        
+			}
 		}
-
-		//Well, is the user on the waitlist?
-		$waitlist = get_post_meta($post->ID, $this->post_type . '_waitlist', false);
-		
-		$user = get_current_user_id();  
-		foreach ($waitlist as $volunteer_on_list) {
+    $admin .= "<tr><td colspan='2'>Waitlisted Volunteers</td></tr>";
+        //Get the waitlist. Is the user on that?
+        $waitlist_roster = get_post_meta($post->ID, $this->post_type . '_waitlist', false);
+				
+		foreach ($waitlist_roster as $volunteer_on_list) {
+            $waitlistedUser = get_userdata($volunteer_on_list);
+		 	$admin .= "<tr><td>" . $waitlistedUser->display_name . "</td><td>" . $waitlistedUser->user_email . "</td></tr>";
 			if($volunteer_on_list == $user) {
-				$user_is_on_waitlist = true;
-				break;
-				}
-		}
-
+				$user_waitlisted = true;
+				
+			}
+		}	
+      $admin .= "</table>";
 		//Are there spots left?
 		$spots = get_post_meta($post->ID, $this->post_type . '_max-project-size', true);
-		if (sizeof($signed_up) >= $spots) {
-			if ($user_is_on_waitlist == true) {
-					return "The project is still full. You are still on the waitlist, we'll contact you if someone drops out!";
-				}
-				update_post_meta($post->ID, 'wp-vpm-project_waitlist', $user);
-				return "The project is full, but you've been added to the waitlist and we'll be in touch if someone cancels!";
+    $debug .= 'sizeof($roster) = '.sizeof($roster).'; $spots = '.$spots.'<br/>';
+		if (sizeof($roster) < $spots) {      	
+		    $spots_available = true;
 		}
+		
+		//Some bookkeeping; If the user is on BOTH the signup and the waitlist, remove them from the waitlist.
+		if($user_signedup && $user_waitlisted){
+		    delete_post_meta($post->ID, $this->post_type . '_waitlist', $user);
+		    unset($user_waitlisted);
+		    $message .= "<em>Oops! We found you are both registered and on the waitlist! You've been removed from the waitlist.</em><br />";
+		}
+	
+	$debug .= "\$waitlist after pre-form logic: " . htmlspecialchars($waitlist) . "<br>";
+//Form logic
+//->Is user signed up?
+//	->YES: Offer Cancellation (Remove Signup & Waitlist Button)
+        if ($user_signedup) {
+            $message .= "<strong>You are signed up for this project!</strong><br />";
+            $signup = '';
+            $waitlist = '';
+        }
+        
+//->Is user waitlisted?
+//	->YES: Offer Cancellation (Remove Waitlist Button)
+        else if ($user_waitlisted) {
+            $message .= 'You are on the waitlist for this project, we will contact you if spots become available.<br />';
+            $waitlist = '';
+        }
+        
+//->Is there space for the user?
+//	->YES: Offer signup (Remove waitlist)
+        if($spots_available) {
+            $waitlist = '';
+            $message .= "This project has space available, come join us!<br />";
+        } 
+//	->NO: Offer waitlist (Remove signup)
+        else {
+            $signup = '';
+            $message .= "This project is currently full.<br />";
+        }
+        
+        //Remove the cancel button if the user is neither signed up or waitlisted.
+        if(!$user_signedup && !$user_waitlisted) $cancel = '';
+     
 
-		//Is the current user on the waitlist, but there is space available?
-		if($user_is_on_waitlist == true && sizeof($signed_up) < $spots) {			
-			delete_post_meta($post->ID, 'wp-vpm-project_waitlist', $user);
-			update_post_meta($post->ID, 'wp-vpm-project_signedup', $user);
-			return "We've moved you from the waitlist to the roster - Congratulations! Look for a project email within a week or so of the project date, and contact us with any questions you may have.";
-		}
-		
-		//Finally, add the user to the list. They made it!
-		if(sizeof($signed_up) < $spots) {
-			update_post_meta($post->ID, 'wp-vpm-project_signedup', $user);
-			return "Thank you! Space is limited so please let us no if you can no longer make it. Expect a logistical email about a week prior the project. We look forward to seeing you!";
-		}
-		
-		//Nobody should get here.
-		return "What did you do?";
+       $debug .= '$message: ' . htmlspecialchars($message) 
+         . '<br> $opentags: ' . htmlspecialchars($opentags)
+         . '<br> $signup: ' . htmlspecialchars($signup)
+         . '<br> $waitlist: ' . htmlspecialchars($waitlist)
+         . '<br> $cancel: ' . htmlspecialchars($cancel)
+      	 . '<br> $closetags: ' . htmlspecialchars($closetags);
+
+      $debug .= "<br>Concatenation test: " . htmlspecialchars($signup.$waitlist.$cancel) . " [Should be blank]";
+      
+      //Option to add debug information.     
+      //$message .= "<span style='background-color:silver;color:red;'>".$debug."</span>";   
+
+      //Option to show administrative information after the project table.
+      //If administrator, show a list of registered users.
+      $closetags .= $admin;
+      
+      //Finally, return the output. 
+      return  $message.$opentags.$signup.$waitlist.$cancel.$closetags;
+
+
+     	
 	}
   
 }
